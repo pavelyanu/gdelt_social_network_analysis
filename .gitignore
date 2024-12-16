@@ -1,3 +1,5 @@
 .idea/
 *ipynb_checkpoints/
 *__pycache__/
+data/migration_bilateral.csv
+.DS_Store
