@@ -1,4 +1,5 @@
 import networkx as nx
+from tqdm.auto import tqdm
 
 from src.data import GDELT
 
@@ -18,6 +19,13 @@ year,actor1country,actor2country,weighted_sum_avgtone,weighted_sum_goldstein,sum
 
 def gdelt_network_vanilla(gdelt: GDELT) -> nx.Graph:
     G = nx.Graph()
-    for _, row in gdelt.df.iterrows():
-        G.add_edge(row['actor1country'], row['actor2country'], weight=row['sum_nummentions'])
+    tqdm.pandas(desc="Creating network")
+    gdelt.df.progress_apply(
+        lambda row: G.add_edge(
+            row['actor1country'],
+            row['actor2country'],
+            weight=row['sum_nummentions']
+        ),
+        axis=1
+    )
     return G
