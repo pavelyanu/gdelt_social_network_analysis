@@ -1,0 +1,19 @@
+name: your_environment_name
+channels:
+  - defaults
+  - anaconda
+dependencies:
+  - python=3.12.2
+  - pip
+  - ipython
+  - numpy
+  - pandas
+  - matplotlib
+  - scikit-learn
+  - networkx
+  - statsmodels 
+  - pip:
+    - tqdm
+    - pycountry
+    - jupyterlab
+    - lxml_html_clean
