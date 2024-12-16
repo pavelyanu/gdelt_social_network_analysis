@@ -34,8 +34,8 @@ def gdelt_network_vanilla(
         df = gdelt.df[gdelt.df['year'] == year]
         df.progress_apply(
             lambda row: G.add_edge(
-                row['actor1country'],
-                row['actor2country'],
+                row['actor1country_name'],
+                row['actor2country_name'],
                 weight=row['sum_nummentions']
             ),
             axis=1
