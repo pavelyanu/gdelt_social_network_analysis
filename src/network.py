@@ -114,7 +114,7 @@ def run_shuffle_test(gdelt_df: pd.DataFrame, migration_df: pd.DataFrame, years: 
         # null_distributions = np.array(null_distributions)
 
         # Run parallel permutations
-        null_distributions = Parallel(n_jobs=n_jobs, verbose=10)(
+        null_distributions = Parallel(n_jobs=n_jobs, verbose=0)(
             delayed(shuffle_once)(G, M) 
             for _ in range(n_permutations)
         )
