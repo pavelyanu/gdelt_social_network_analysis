@@ -1,6 +1,8 @@
 from argparse import ArgumentParser, Namespace
 
 from src.data import *
+from src.network import gdelt_network_vanilla
+from src.plot import plot_gdelt_network
 
 parser = ArgumentParser()
 
@@ -11,6 +13,10 @@ parser.add_argument('--gdelt_path', default="data/gdelt_social.csv", type=str, h
 def main(args: Namespace):
     migration = get_migration(args.migration_path)
     refugee = get_refugee(args.refugee_path)
+    gdelt = get_gdelt(args.gdelt_path)
+
+    G = gdelt_network_vanilla(gdelt)
+    plot_gdelt_network(G)
 
 
 
