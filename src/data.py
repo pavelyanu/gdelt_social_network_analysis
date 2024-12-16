@@ -190,6 +190,35 @@ class GDELT(DFWrapper):
 
     def __init__(self, df):
         super().__init__(df)
+        self.add_country_names()
+
+    def add_country_names(self):
+        unique_codes = self.df['actor1country'].unique().tolist()
+        unique_codes.extend(self.df['actor2country'].unique().tolist())
+        unique_codes = set(unique_codes)
+
+        code_to_name = {}
+        for code in unique_codes:
+            try :
+                country = pycountry.countries.lookup(code)
+                code_to_name[code] = country.name
+            except LookupError:
+                pass
+
+        self.df = self.df[
+            self.df['actor1country'].isin(code_to_name) &
+            self.df['actor2country'].isin(code_to_name)
+        ].copy()
+
+        self.df['actor1country_name'] = self.df['actor1country'].apply(lambda x: code_to_name[x])
+        self.df['actor2country_name'] = self.df['actor2country'].apply(lambda x: code_to_name[x])
+
+    def clean_data(self, percentile: float = 0.95):
+        df = self.df[self.df['actor1country'] != self.df['actor2country']]
+        df.dropna(inplace=True)
+        percentile = self.df.groupby('year')['sum_nummentions'].transform(lambda x: x.quantile(percentile))
+        self.df = self.df[self.df['sum_nummentions'] >= percentile]
+        return self
 
 class Migration(DFWrapper):
 
