@@ -1,3 +1,5 @@
+from typing import Union, List, Dict, Iterable
+
 import networkx as nx
 from tqdm.auto import tqdm
 
@@ -17,15 +19,26 @@ year,actor1country,actor2country,weighted_sum_avgtone,weighted_sum_goldstein,sum
 1979,AFG,CZE,9.1038284625995161,2.7956521739130431,46
 """
 
-def gdelt_network_vanilla(gdelt: GDELT) -> nx.Graph:
-    G = nx.Graph()
-    tqdm.pandas(desc="Creating network")
-    gdelt.df.progress_apply(
-        lambda row: G.add_edge(
-            row['actor1country'],
-            row['actor2country'],
-            weight=row['sum_nummentions']
-        ),
-        axis=1
-    )
-    return G
+def gdelt_network_vanilla(
+        gdelt: GDELT,
+        years: Union[int, Iterable[int]] = 2020
+    ) -> Union[nx.Graph, Dict[int, nx.Graph]]:
+
+    years = [years] if isinstance(years, int) else years
+    networks: Dict[int, nx.Graph] = {}
+    for year in years:
+        if year not in gdelt.df['year'].unique():
+            raise ValueError(f"Year {year} not in GDELT data.")
+        G = nx.Graph()
+        tqdm.pandas(desc=f"Creating network for year {year}")
+        df = gdelt.df[gdelt.df['year'] == year]
+        df.progress_apply(
+            lambda row: G.add_edge(
+                row['actor1country'],
+                row['actor2country'],
+                weight=row['sum_nummentions']
+            ),
+            axis=1
+        )
+        networks[year] = G
+    return networks if len(years) > 1 else networks[years[0]]
