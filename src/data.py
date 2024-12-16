@@ -15,14 +15,16 @@ import numpy as np
 
 """
 GDELT HEAD:
-head events/data/gdelt_top100_events_1960_2020_full.csv 
-GLOBALEVENTID,Actor1CountryCode,Actor2CountryCode,Actor1Name,Actor2Name,Year,SQLDATE,EventCode,NumMentions,GoldsteinScale,AvgTone,ActionGeo_Lat,ActionGeo_Long,percentile,SOURCEURL
-355098,ABW,NLD,ARUBA,NETHERLANDS,1979,19791123,051,4,3.4,5,12.1911,-68.2567,1,unspecified
-1433649,ABW,NLD,ARUBA,THE NETHERLAND,1981,19811028,037,10,5,3.1413612565445,12.25,-68.75,1,unspecified
-3684442,ABW,,ARUBA,,1984,19841004,043,10,2.8,4.9645390070922,12.5167,-70.0333,1,unspecified
-5592722,ABW,NLD,ARUBA,THE NETHERLAND,1986,19861126,193,19,-10,4.76582068155965,12.5,-69.9667,1,unspecified
-6940533,ABW,COL,ARUBA,COLOMBIAN,1988,19880514,043,9,2.8,2.54777070063694,12.5,-69.9667,1,unspecified
-
+Year,Actor1Country,Actor2Country,weighted_sum_avgtone,weighted_sum_goldstein,sum_nummentions
+1979,ABW,NLD,5,3.4,4
+1979,AFG,AFG,5.5960831546356324,0.50163652024117145,1161
+1979,AFG,ARE,6.79611650485437,1.9,8
+1979,AFG,BEL,4.96613995485327,2.5,18
+1979,AFG,BGR,6.0363729323650475,3.0799999999999992,100
+1979,AFG,CAN,2.4390243902439,-10,18
+1979,AFG,CHN,5.8165367352912618,-1.2832000000000003,125
+1979,AFG,CUB,5.1874295187414967,3.4255813953488374,43
+1979,AFG,CZE,9.1038284625995161,2.7956521739130431,46
 """
 
 """
@@ -184,6 +186,40 @@ class DFWrapper:
     def __setitem__(self, key, value):
         self.df[key] = value
 
+class GDELT(DFWrapper):
+
+    def __init__(self, df):
+        super().__init__(df)
+        self.add_country_names()
+
+    def add_country_names(self):
+        unique_codes = self.df['actor1country'].unique().tolist()
+        unique_codes.extend(self.df['actor2country'].unique().tolist())
+        unique_codes = set(unique_codes)
+
+        code_to_name = {}
+        for code in unique_codes:
+            try :
+                country = pycountry.countries.lookup(code)
+                code_to_name[code] = country.name
+            except LookupError:
+                pass
+
+        self.df = self.df[
+            self.df['actor1country'].isin(code_to_name) &
+            self.df['actor2country'].isin(code_to_name)
+        ].copy()
+
+        self.df['actor1country_name'] = self.df['actor1country'].apply(lambda x: code_to_name[x])
+        self.df['actor2country_name'] = self.df['actor2country'].apply(lambda x: code_to_name[x])
+
+    def clean_data(self, percentile: float = 0.95):
+        df = self.df[self.df['actor1country'] != self.df['actor2country']]
+        df.dropna(inplace=True)
+        percentile = self.df.groupby('year')['sum_nummentions'].transform(lambda x: x.quantile(percentile))
+        self.df = self.df[self.df['sum_nummentions'] >= percentile]
+        return self
+
 class Migration(DFWrapper):
 
     iso_or_codes: Optional[List[str]] = None
@@ -271,6 +307,9 @@ class Refugee(DFWrapper):
             'host community'
         ]
         self.df.drop(columns=columns_to_drop, inplace=True)
+
+def get_gdelt(path: str) -> GDELT:
+    return GDELT(load_df(path))
 
 def get_migration(path: str) -> Migration:
     return Migration(load_df(path))
