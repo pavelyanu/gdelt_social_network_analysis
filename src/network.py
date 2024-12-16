@@ -3,6 +3,9 @@ import pandas as pd
 import numpy as np
 from scipy.stats import pearsonr
 from joblib import Parallel, delayed
+from networkx.algorithms import community
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 def create_gdelt_network(gdelt_sub, weight_col='weighted_sum_goldstein'):
     """
@@ -74,7 +77,6 @@ def shuffle_once(G, M):
     null_corr = compute_correlation(gdelt_w_shuffled, migration_w_shuffled)
     return null_corr
 
-
 def run_shuffle_test(gdelt_df: pd.DataFrame, migration_df: pd.DataFrame, years: list[int], weight_col_gdelt: str = 'weighted_sum_goldstein', weight_col_migration: str = 'flow', n_jobs: int = -1):
     n_permutations = 1000
 
@@ -135,3 +137,151 @@ def run_shuffle_test(gdelt_df: pd.DataFrame, migration_df: pd.DataFrame, years: 
 
     results_df = pd.DataFrame(results)
     return results_df
+
+def build_full_migration_network(df: pd.DataFrame):
+    years = df['year'].unique()
+
+    graphs_by_year = {}
+    for y in years:
+        df_y = df[df['year'] == y]
+        G_y = nx.DiGraph()
+        # Add nodes and edges
+        origins = df_y['iso_or'].unique()
+        destinations = df_y['iso_des'].unique()
+        countries = set(origins).union(destinations)
+        G_y.add_nodes_from(countries)
+        for _, row in df_y.iterrows():
+            if pd.notnull(row['stock']):
+                G_y.add_edge(row['iso_or'], row['iso_des'], weight=row['stock'])
+        graphs_by_year[y] = G_y
+
+    return graphs_by_year
+
+def get_full_info(graphs_by_year: dict):
+    info_all = {}
+
+    for y, G_y in graphs_by_year.items():
+        info = get_G_info(G_y)
+        info_all[y] = info
+
+    return info_all
+
+def plot_bar(top_list: list[(str, float)]):
+    top_list.sort(key = lambda x: x[1], reverse=False)
+    country_names = [c for c, _ in top_list]
+    meas = [m for _, m in top_list]
+    plt.barh(country_names, meas)
+
+def get_animation(info_all: dict, measure = "betweenness"):
+    frames = [int(x) for x in info_all.keys() if int(x) > 1990]
+    
+    fig, ax = plt.subplots(figsize = (12,6))
+
+    def animate(frame):
+        ax.clear()
+        vals = get_top_values(info_all[frame][measure], 10)
+        vals.sort(key = lambda x: x[1], reverse=False)
+        country_names = [c for c, _ in vals]
+        meas = [m for _, m in vals]
+        ax.barh(country_names, meas)
+        ax.set_title(f"Top 10 {measure} - Frame: {frame}")
+        ax.set_xlabel(measure)
+        ax.set_ylabel("Country")
+
+    an = animation.FuncAnimation(fig, animate, frames, interval=500)
+    return an
+
+
+
+def build_year_migration_network(df: pd.DataFrame, year: int):
+    df_year = df[df['year'] == year]
+    G = nx.DiGraph()
+    origins = df_year['iso_or'].unique()
+    destinations = df_year['iso_des'].unique()
+    all_countries = set(origins).union(set(destinations))
+    G.add_nodes_from(all_countries)
+
+    for _, row in df_year.iterrows():
+        if not pd.isnull(row['stock']):
+            G.add_edge(row['iso_or'], row['iso_des'], weight=row['stock'])
+
+    return G 
+
+def get_G_info(G: nx.DiGraph):
+    info = {}
+
+    in_degree = G.in_degree(weight='weight')
+    out_degree = G.out_degree(weight='weight')
+    info["in_degrees"] = {node: val for (node, val) in in_degree}
+    info["out_degrees"] = {node: val for (node, val) in out_degree}
+    info['node_num'] = len(G.nodes)
+    info['edge_num'] = len(G.edges)
+
+    max_edges = len(G.nodes) * (len(G.nodes) - 1)
+    actual_edges = len(G.edges)
+    info['density'] = actual_edges / max_edges if max_edges > 0 else 0
+
+    info["betweenness"] = nx.betweenness_centrality(G, normalized=True)
+
+    info['clustering_coefficients'] = nx.clustering(G)
+
+    reciprocal_pairs = sum(1 for u, v in G.edges if G.has_edge(v, u))
+    assert reciprocal_pairs % 2 == 0
+    reciprocal_pairs /= 2
+    info['reciprocity'] = reciprocal_pairs / (len(G.edges) - reciprocal_pairs) if len(G.edges) > 0 else 0
+
+    if nx.is_strongly_connected(G):
+        info['diameter'] = nx.diameter(G)
+    else:
+        info['diameter'] = float('inf')
+
+    weak_components = nx.weakly_connected_components(G)
+    info['weak_component_num'] = sum(1 for _ in weak_components)
+    strong_components = nx.strongly_connected_components(G)
+    info['strong_component_num'] = sum(1 for _ in strong_components)
+
+    return info
+
+def report_G_info(info: dict):
+    for key, val in info.items():
+        if type(val) != dict:
+            print(f'{key}: {val}')
+
+
+def get_communities(G):
+    return community.greedy_modularity_communities(G, weight='weight')
+
+def visualise_comm(G):
+    comm = get_communities(G)
+    node_to_comm = {}
+    for i, c in enumerate(comm):
+        for node in c:
+            node_to_comm[node] = i
+
+    colors = [node_to_comm[node] for node in G.nodes()]
+
+    # Create a layout for the graph
+    pos = nx.spring_layout(G, seed=42)  # seed for reproducibility
+
+    # Draw the nodes, with the color determined by their community
+    nx.draw_networkx_nodes(G, pos, node_color=colors, cmap=plt.cm.tab20, node_size=100)
+    nx.draw_networkx_edges(G, pos, alpha=0.3)
+    nx.draw_networkx_labels(G, pos, font_size=8)
+
+    plt.axis('off')
+    plt.title("Communities detected by Greedy Modularity")
+    plt.show()
+
+
+def get_top_values(dict: dict, k: int):
+    return sorted(dict.items(), key=lambda x: x[1], reverse=True)[:k]
+
+def visualise_graph(g: nx.DiGraph, year: int = 2011):
+    plt.figure()
+    pos = nx.spring_layout(g, k=0.5, seed=42)
+    nx.draw(g, pos, node_size=300, alpha=0.7, with_labels=True)
+    plt.title(f"Migration in {year}")
+    plt.show()
+
+def create_subgraph(g: nx.DiGraph, nodes_to_include: list):
+    return g.subgraph(nodes_to_include).copy()
