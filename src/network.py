@@ -23,7 +23,6 @@ def gdelt_network_vanilla(
         gdelt: GDELT,
         years: Union[int, Iterable[int]] = 2020
     ) -> Union[nx.Graph, Dict[int, nx.Graph]]:
-
     years = [years] if isinstance(years, int) else years
     networks: Dict[int, nx.Graph] = {}
     for year in years:
@@ -32,13 +31,20 @@ def gdelt_network_vanilla(
         G = nx.Graph()
         tqdm.pandas(desc=f"Creating network for year {year}")
         df = gdelt.df[gdelt.df['year'] == year]
-        df.progress_apply(
-            lambda row: G.add_edge(
+
+        def add_edge(row):
+            if not G.has_node(row['actor1country_name']):
+                G.add_node(row['actor1country_name'], iso=row['actor1country'])
+            if not G.has_node(row['actor2country_name']):
+                G.add_node(row['actor2country_name'], iso=row['actor2country'])
+
+            G.add_edge(
                 row['actor1country_name'],
                 row['actor2country_name'],
                 weight=row['sum_nummentions']
-            ),
-            axis=1
-        )
+            )
+
+        df.progress_apply(add_edge, axis=1)
         networks[year] = G
     return networks if len(years) > 1 else networks[years[0]]
+

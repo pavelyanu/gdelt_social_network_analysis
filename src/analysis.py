@@ -22,14 +22,22 @@ def compute_basic_centralities(G: nx.Graph) -> pd.DataFrame:
     return df
 
 
-def compute_communities(G: nx.Graph) -> pd.Series:
+def compute_communities(G: nx.Graph) -> pd.DataFrame:
+    """
+    Compute communities and return a DataFrame with columns: ['iso', 'country_name', 'community'].
+    """
     comms = community.greedy_modularity_communities(G, weight='weight')
-    node_to_comm = {}
+    records = []
     for i, c in enumerate(comms):
         for node in c:
-            node_to_comm[node] = i
-    return pd.Series(node_to_comm, name='community')
-
+            iso = G.nodes[node]['iso'] if 'iso' in G.nodes[node] else None
+            records.append({
+                'country_name': node,
+                'iso': iso,
+                'community': i
+            })
+    df = pd.DataFrame(records)
+    return df
 
 def summarize_network(G: nx.Graph) -> pd.DataFrame:
     data = {

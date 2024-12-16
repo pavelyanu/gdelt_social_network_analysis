@@ -307,6 +307,23 @@ class Refugee(DFWrapper):
             'host community'
         ]
         self.df.drop(columns=columns_to_drop, inplace=True)
+        
+def load_country_centroids() -> Dict[str, Tuple[float, float]]:
+    """
+    Loads country centroids (average latitude and longitude) from a remote CSV file.
+    Returns a dictionary mapping ISO3 country codes to (latitude, longitude) tuples.
+    """
+    url = 'https://cdn.jsdelivr.net/gh/gavinr/world-countries-centroids@v1/dist/countries.csv'
+    df = pd.read_csv(url)
+    country_centroids = {}
+    for _, row in df.iterrows():
+        iso3 = get_country_iso3(row['COUNTRY'], fuzzy=True, throw=False)
+        if iso3 is None:
+            continue
+        lat = row['latitude']
+        lon = row['longitude']
+        country_centroids[iso3] = (lat, lon)
+    return country_centroids
 
 def get_gdelt(path: str) -> GDELT:
     return GDELT(load_df(path))

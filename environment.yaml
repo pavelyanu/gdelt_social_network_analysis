@@ -2,6 +2,7 @@ name: your_environment_name
 channels:
   - defaults
   - anaconda
+  - plotly
 dependencies:
   - python=3.12.2
   - pip
@@ -9,6 +10,7 @@ dependencies:
   - numpy
   - pandas
   - matplotlib
+  - plotly
   - scikit-learn
   - networkx
   - statsmodels 
