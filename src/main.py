@@ -35,8 +35,17 @@ def main(args: Namespace):
     gdelt.clean_data()
 
     networks = gdelt_network_vanilla(gdelt, years=range(2000, 2025))
-    # plot_yearly_centralities(networks)
+    plot_yearly_centralities(networks)
     plot_yearly_communities(networks)
+
+def print_netwrork_summary(gdelt):
+    network = gdelt_network_vanilla(gdelt, years=2024)
+    summary = summarize_network(network)
+    print(summary)
+
+def plot_temporal_analysis(networks: Dict[int, nx.Graph]):
+    df = temporal_analysis(networks)
+    plot_network_summary_over_time(df)
 
 def plot_yearly_centralities(networks: Dict[int, nx.Graph]):
     centralities_per_year = compute_yearly_centralities(networks)
